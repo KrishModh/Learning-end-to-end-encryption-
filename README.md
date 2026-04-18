@@ -1,140 +1,304 @@
-# Minimal E2EE Chat Test App
+<div align="center">
 
-This project demonstrates **client-side End-to-End Encryption (E2EE)** between two predefined users for both **text** and **file (image/PDF)** messages.
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=🔐+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" alt="Typing SVG" />
 
-- Frontend: React + Vite + Web Crypto API
-- Backend: Node.js + Express + MongoDB Atlas (Mongoose)
-- File Storage: Cloudinary (stores encrypted file bytes only)
+<br/>
 
-The backend and Cloudinary never decrypt message/file contents.
+# 🔐 Minimal E2EE — Learning End-to-End Encryption
 
-## Project Structure
+> **Not a product. A proof of concept.**  
+> Built with 2 hardcoded users to deeply understand how real-world E2EE works —  
+> so I can implement it properly in future projects.
 
-```text
-backend/
-frontend/
+<br/>
+
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB_Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
+![Cloudinary](https://img.shields.io/badge/Cloudinary-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white)
+![WebCrypto](https://img.shields.io/badge/Web_Crypto_API-FF6B35?style=for-the-badge&logo=webauthn&logoColor=white)
+
+</div>
+
+---
+
+## 🎯 Why I Built This
+
+Most tutorials explain E2EE in theory. I wanted to **actually build it** and verify every layer —  
+see the ciphertext in MongoDB, open a Cloudinary URL and see garbage bytes, send the same message twice and get completely different output.
+
+This is a **minimal sandbox** — 2 predefined users, no signup, no UI polish.  
+The only goal: understand the crypto, end to end.
+
+> I plan to take everything learned here and implement proper E2EE in real projects going forward.
+
+---
+
+## 📸 What It Looks Like
+
+<div align="center">
+
+| User 1 | User 2 |
+|:---:|:---:|
+| ![User 1](./screenshots/user1.png) | ![User 2](./screenshots/user2.png) |
+| **Cloudinary Dashboard** | **Database** |
+| ![Cloudinary](./screenshots/cloudinary.png) | ![Database](./screenshots/database.png) |
+
+</div>
+
+---
+
+## 🧠 What's Actually Inside
+
+This is not a chat app. It's a **crypto implementation test** with a minimal UI to trigger and verify encryption flows.
+
+**What it demonstrates:**
+- RSA key pair generation in the browser (`window.crypto.subtle`) — no third-party crypto library
+- Public key exchange between two users via the backend
+- Hybrid encryption: AES-GCM for data, RSA-OAEP for the key
+- Encrypted file upload (image/PDF) — Cloudinary stores raw encrypted bytes only
+- Zero-knowledge backend — the server genuinely cannot read anything
+
+**What it intentionally skips:**
+- Multi-user support
+- Real-time messaging (no WebSockets)
+- UI/UX design
+- Production hardening
+
+---
+
+## ⚙️ How E2EE Works Here
+
+### 🗨️ Text Message
+
+```
+User types message
+        │
+        ▼
+Generate random AES-GCM key + random IV
+        │
+        ▼
+Encrypt plaintext  ────────────────────▶  ciphertext  (goes to DB)
+        │
+        ▼
+RSA-OAEP encrypt the AES key:
+  ├── with Sender's   Public Key  ──▶  encryptedAESKeyForSender
+  └── with Receiver's Public Key  ──▶  encryptedAESKeyForReceiver
+        │
+        ▼
+Backend stores ONLY ciphertext + encrypted keys
+Backend CANNOT decrypt anything ✅
 ```
 
-## 1) Backend Setup
+### 📁 File (Image / PDF)
 
-1. Copy env template:
+```
+User selects file
+        │
+        ▼
+Read file as ArrayBuffer in browser
+        │
+        ▼
+AES-GCM encrypt raw bytes + random IV
+        │
+        ▼
+RSA-OAEP encrypt AES key (for sender + receiver)
+        │
+        ▼
+Upload encrypted blob ──▶ Backend ──▶ Cloudinary
+(Cloudinary URL = encrypted bytes, NOT the original file)
+        │
+        ▼
+Receiver fetches URL ──▶ decrypts locally ──▶ sees file ✅
+```
 
-```powershell
+---
+
+## 🗂️ Project Structure
+
+```
+Z-TEST-E2EE/
+├── backend/
+│   ├── src/
+│   │   ├── middleware/
+│   │   │   └── auth.js          # JWT verification
+│   │   ├── models/
+│   │   │   ├── Message.js       # all encrypted fields only
+│   │   │   └── User.js          # email + publicKey
+│   │   ├── routes/
+│   │   │   ├── auth.js          # login, peer lookup
+│   │   │   ├── files.js         # encrypted file upload
+│   │   │   ├── messages.js      # send / fetch messages
+│   │   │   └── users.js         # public key exchange
+│   │   └── dropIndex.js
+│   ├── server.js
+│   ├── .env.example
+│   └── package.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   │   ├── ChatPage.jsx     # main UI + raw payload debug panel
+│   │   │   └── LoginPage.jsx
+│   │   ├── utils/
+│   │   │   ├── api.js           # axios calls to backend
+│   │   │   └── crypto.js        # all Web Crypto API logic lives here
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── styles.css
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── .env.example
+│   └── package.json
+│
+├── package.json                 # root scripts to run both together
+└── README.md
+```
+
+---
+
+## 🚀 Running Locally
+
+### Prerequisites
+
+- Node.js `v18+`
+- MongoDB Atlas free account
+- Cloudinary free account
+
+---
+
+### 1️⃣ Clone
+
+```bash
+git clone https://github.com/KrishModh/e2ee-minimal.git
+cd e2ee-minimal
+```
+
+---
+
+### 2️⃣ Backend Setup
+
+```bash
 cd backend
+
+# Linux / macOS
+cp .env.example .env
+
+# Windows PowerShell
 Copy-Item .env.example .env
 ```
 
-2. Update `.env` with real values:
+Fill in `.env`:
 
-- `PORT`
-- `MONGO_URI`
-- `JWT_SECRET`
-- `USER1_EMAIL`
-- `USER1_PASSWORD`
-- `USER2_EMAIL`
-- `USER2_PASSWORD`
-- `CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
+```env
+PORT=5000
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/e2ee
+JWT_SECRET=any_random_secret
 
-3. Install and run backend:
+USER1_EMAIL=alice@example.com
+USER1_PASSWORD=alice123
+USER2_EMAIL=bob@example.com
+USER2_PASSWORD=bob123
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
 
 ```bash
 npm install
 npm run dev
+# → http://localhost:5000
 ```
 
-Backend runs on `http://localhost:5000` by default.
+---
 
-## 2) Frontend Setup
-
-1. Copy env template:
-
-```powershell
-cd frontend
-Copy-Item .env.example .env
-```
-
-2. Set API URL in `.env`:
-
-- `VITE_API_URL=http://localhost:5000`
-
-3. Install and run frontend:
+### 3️⃣ Frontend Setup
 
 ```bash
+cd ../frontend
+
+cp .env.example .env        # or Copy-Item on Windows
+# set VITE_API_URL=http://localhost:5000
+
 npm install
 npm run dev
+# → http://localhost:5173
 ```
 
-Frontend runs on Vite default URL (usually `http://localhost:5173`).
+---
 
-## 3) Run Both from Root (Optional)
-
-From project root:
+### 4️⃣ Or Run Both Together
 
 ```bash
+# from project root
 npm install
 npm run install:all
 npm run dev
 ```
 
-## How E2EE Works
+Open `http://localhost:5173` in **two browser tabs** — log in as User 1 in one, User 2 in the other.
 
-### Text Message Flow
+---
 
-1. Frontend generates AES key + random IV.
-2. Plaintext is encrypted with AES-GCM.
-3. AES key is encrypted twice using RSA-OAEP:
-   - one copy with sender public key
-   - one copy with receiver public key
-4. Backend stores only ciphertext fields.
+## 🔌 API Endpoints
 
-### File (Image/PDF) Flow
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/api/auth/login` | Login + receive JWT |
+| `GET` | `/api/auth/peer` | Get the other user's info |
+| `POST` | `/api/users/public-key` | Upload your RSA public key |
+| `GET` | `/api/users/public-key/:email` | Fetch peer's public key |
+| `POST` | `/api/files/upload` | Upload encrypted file blob |
+| `POST` | `/api/messages` | Send encrypted message |
+| `GET` | `/api/messages?withUser=<email>` | Fetch conversation |
 
-1. User selects file.
-2. Frontend reads file as `ArrayBuffer`.
-3. Frontend encrypts bytes with AES-GCM + random IV.
-4. AES key is RSA-encrypted for sender and receiver.
-5. Frontend uploads encrypted binary blob to backend.
-6. Backend uploads raw encrypted bytes to Cloudinary.
-7. Backend stores only Cloudinary URL + encrypted key material.
-8. Receiver downloads encrypted bytes and decrypts locally.
 
-## Debug + Verification
+---
 
-- Chat page includes **Debug: Raw encrypted payload** panel.
-- Send same text or upload same file twice and compare payload `iv` / ciphertext: values should differ each time.
-- Opening Cloudinary URL directly shows encrypted raw bytes, not original image/PDF.
-- MongoDB stores encrypted fields only.
+## ✅ How to Verify the Encryption is Real
 
-## Backend API
+| Test | What to do | What you'll see |
+|------|-----------|-----------------|
+| **Random IV** | Send the same message twice | Completely different ciphertext both times |
+| **Encrypted files** | Open the Cloudinary URL directly | Raw bytes — not your image |
+| **Zero-knowledge DB** | Check MongoDB directly | No readable message anywhere |
 
-- `POST /api/auth/login`
-- `GET /api/auth/peer`
-- `POST /api/users/public-key`
-- `GET /api/users/public-key/:email`
-- `POST /api/files/upload` (encrypted file upload)
-- `POST /api/messages`
-- `GET /api/messages?withUser=<email>`
+---
 
-## MongoDB Schemas
+## 📚 Concepts Covered
 
-### Users
+-  `window.crypto.subtle` — browser-native crypto, no third-party libraries
+- RSA-OAEP — asymmetric key exchange (2048-bit)
+-  AES-GCM 256-bit — authenticated symmetric encryption
+-  Hybrid encryption (RSA wraps AES key) — industry standard pattern
+-  Random IV per message — prevents ciphertext pattern leakage
+-  Zero-knowledge backend architecture
+-  Encrypted binary file handling (`ArrayBuffer` → encrypted blob → Cloudinary)
+-  Private key stored in `localStorage` — never leaves the browser
 
-- `email`
-- `publicKey`
+---
 
-### Messages
+## 👤 Author
 
-- `sender`
-- `receiver`
-- `type` (`text` or `file`)
-- `encryptedMessage` (text only)
-- `fileUrl` (file only)
-- `encryptedAESKey` (receiver key copy)
-- `encryptedAESKeyForSender`
-- `encryptedAESKeyForReceiver`
-- `iv`
-- `fileType` (`image` or `pdf`, file only)
-- `fileMime` (optional helper, file only)
-- `timestamp`
+<div align="center">
+
+**Krish Modh**
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/krish-modh-b38447300/)
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/KrishModh)
+
+*Built this to go from "I know what E2EE means" to "I know how E2EE works."*
+
+</div>
+
+---
+
+<div align="center">
+
+⭐ **If this helped you understand E2EE, drop a star!** ⭐
+
+</div>
