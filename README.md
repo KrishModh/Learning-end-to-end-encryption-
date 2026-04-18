@@ -2,7 +2,7 @@
 
 <!-- <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=🔐+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" alt="Typing SVG" /> -->
 
-<img alt="Typing SVG" src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=🔐+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" />
+<img width="100%" alt="Typing SVG" src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=🔐+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" />
 
 <br/>
 
