@@ -56,7 +56,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="******"
+            placeholder="*******"
           />
 
           {error ? <p className="error">{error}</p> : null}
