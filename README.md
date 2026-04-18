@@ -1,7 +1,9 @@
 <div align="center">
-
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=🔐+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" alt="Typing SVG" />
-
+        
+<a href="https://git.io/typing-svg">
+  <img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=700&size=26&pause=1000&color=00D4FF&center=true&vCenter=true&width=700&lines=%F0%9F%94%90+Learning+End-to-End+Encryption;RSA-OAEP+%2B+AES-GCM+from+Scratch;Zero+Knowledge+Backend+Demo" alt="Typing SVG" />
+</a>
+ 
 <br/>
 
 # 🔐 Minimal E2EE — Learning End-to-End Encryption
@@ -42,9 +44,9 @@ The only goal: understand the crypto, end to end.
 
 | User 1 | User 2 |
 |:---:|:---:|
-| ![User 1](./screenshots/user1.png) | ![User 2](./screenshots/user2.png) |
+| <img width="2560" height="1440" alt="Screenshot (1191)" src="https://github.com/user-attachments/assets/0f1c72dc-9af9-4ed3-8e0a-958cbcd03934" /> | <img width="2560" height="1440" alt="Screenshot (1190)" src="https://github.com/user-attachments/assets/3ba89f10-d377-4912-a1d6-40ea3552d98a" /> |
 | **Cloudinary Dashboard** | **Database** |
-| ![Cloudinary](./screenshots/cloudinary.png) | ![Database](./screenshots/database.png) |
+| <img width="2560" height="1440" alt="Screenshot (1192)" src="https://github.com/user-attachments/assets/71674843-5d35-4198-ac9c-37be0a2006a1" /> | <img width="2560" height="1440" alt="Screenshot (1193)" src="https://github.com/user-attachments/assets/b7143ee7-7c2c-4a92-ab5b-dc22a8b6da0b" /> |
 
 </div>
 
