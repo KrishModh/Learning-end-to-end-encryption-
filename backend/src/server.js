@@ -2,12 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const { v2: cloudinary } = require('cloudinary');
 
 dotenv.config();
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const messageRoutes = require('./routes/messages');
+const fileRoutes = require('./routes/files');
 
 const app = express();
 
@@ -21,6 +23,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/files', fileRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);
@@ -34,7 +37,10 @@ const requiredEnv = [
   'USER1_EMAIL',
   'USER1_PASSWORD',
   'USER2_EMAIL',
-  'USER2_PASSWORD'
+  'USER2_PASSWORD',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET'
 ];
 
 for (const key of requiredEnv) {
@@ -42,6 +48,12 @@ for (const key of requiredEnv) {
     throw new Error(`Missing required env var: ${key}`);
   }
 }
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 async function startServer() {
   await mongoose.connect(process.env.MONGO_URI);

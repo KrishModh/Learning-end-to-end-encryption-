@@ -24,6 +24,28 @@ async function apiRequest(path, options = {}) {
   return data;
 }
 
+async function uploadEncryptedFile(file, originalType) {
+  const token = localStorage.getItem('token');
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('originalType', originalType);
+
+  const response = await fetch(`${API_URL}/api/files/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: formData
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'File upload failed');
+  }
+
+  return data;
+}
+
 export const api = {
   login: (email, password) =>
     apiRequest('/api/auth/login', {
@@ -45,6 +67,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload)
     }),
+
+  uploadEncryptedFile,
 
   getMessages: (withUser) => apiRequest(`/api/messages?withUser=${encodeURIComponent(withUser)}`)
 };

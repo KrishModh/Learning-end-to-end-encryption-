@@ -130,9 +130,40 @@ button.secondary {
   word-break: break-word;
 }
 
+.file-message {
+  display: grid;
+  gap: 8px;
+}
+
+.preview-image {
+  max-width: 260px;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  object-fit: contain;
+  background: white;
+}
+
+.pdf-link {
+  color: #0f766e;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pdf-link:hover {
+  text-decoration: underline;
+}
+
 .send-form {
   display: grid;
   grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-upload-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
 }
@@ -163,6 +194,10 @@ button.secondary {
 
 @media (max-width: 720px) {
   .send-form {
+    grid-template-columns: 1fr;
+  }
+
+  .file-upload-row {
     grid-template-columns: 1fr;
   }
 

@@ -1,7 +1,13 @@
 const keyStoragePrefix = 'e2ee-rsa-private-key::';
 
 function toBase64(arrayBuffer) {
-  return btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const bytes = new Uint8Array(arrayBuffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function fromBase64(base64) {
@@ -11,6 +17,86 @@ function fromBase64(base64) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+async function createEncryptedPayload(
+  plainBuffer,
+  senderPublicKeyBase64,
+  receiverPublicKeyBase64
+) {
+  const aesKey = await crypto.subtle.generateKey(
+    {
+      name: 'AES-GCM',
+      length: 256
+    },
+    true,
+    ['encrypt', 'decrypt']
+  );
+
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  const encryptedContent = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv
+    },
+    aesKey,
+    plainBuffer
+  );
+
+  const exportedAesKey = await crypto.subtle.exportKey('raw', aesKey);
+
+  const [senderPubKey, receiverPubKey] = await Promise.all([
+    importPublicKey(senderPublicKeyBase64),
+    importPublicKey(receiverPublicKeyBase64)
+  ]);
+
+  const [encryptedAESKeyForSender, encryptedAESKeyForReceiver] = await Promise.all([
+    crypto.subtle.encrypt({ name: 'RSA-OAEP' }, senderPubKey, exportedAesKey),
+    crypto.subtle.encrypt({ name: 'RSA-OAEP' }, receiverPubKey, exportedAesKey)
+  ]);
+
+  return {
+    encryptedContent,
+    encryptedAESKeyForSender: toBase64(encryptedAESKeyForSender),
+    encryptedAESKeyForReceiver: toBase64(encryptedAESKeyForReceiver),
+    iv: toBase64(iv.buffer)
+  };
+}
+
+async function decryptToArrayBuffer(payload, privateKey, myEmail, encryptedContent) {
+  const { encryptedAESKeyForSender, encryptedAESKeyForReceiver, iv } = payload;
+
+  const isSender = payload.sender?.toLowerCase() === myEmail?.toLowerCase();
+  const encryptedAESKey = isSender ? encryptedAESKeyForSender : encryptedAESKeyForReceiver;
+
+  const aesRawKey = await crypto.subtle.decrypt(
+    {
+      name: 'RSA-OAEP'
+    },
+    privateKey,
+    fromBase64(encryptedAESKey)
+  );
+
+  const aesKey = await crypto.subtle.importKey(
+    'raw',
+    aesRawKey,
+    {
+      name: 'AES-GCM',
+      length: 256
+    },
+    false,
+    ['decrypt']
+  );
+
+  return crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: new Uint8Array(fromBase64(iv))
+    },
+    aesKey,
+    typeof encryptedContent === 'string' ? fromBase64(encryptedContent) : encryptedContent
+  );
 }
 
 export async function generateAndExportRSAKeys() {
@@ -88,80 +174,46 @@ export async function ensurePrivateKeyForUser(email) {
 }
 
 export async function encryptMessage(plainText, senderPublicKeyBase64, receiverPublicKeyBase64) {
-  const aesKey = await crypto.subtle.generateKey(
-    {
-      name: 'AES-GCM',
-      length: 256
-    },
-    true,
-    ['encrypt', 'decrypt']
+  const plainBuffer = new TextEncoder().encode(plainText);
+  const encrypted = await createEncryptedPayload(
+    plainBuffer,
+    senderPublicKeyBase64,
+    receiverPublicKeyBase64
   );
-
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encodedMessage = new TextEncoder().encode(plainText);
-
-  const encryptedMessage = await crypto.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv
-    },
-    aesKey,
-    encodedMessage
-  );
-
-  const exportedAesKey = await crypto.subtle.exportKey('raw', aesKey);
-
-  const [senderPubKey, receiverPubKey] = await Promise.all([
-    importPublicKey(senderPublicKeyBase64),
-    importPublicKey(receiverPublicKeyBase64)
-  ]);
-
-  const [encryptedAESKeyForSender, encryptedAESKeyForReceiver] = await Promise.all([
-    crypto.subtle.encrypt({ name: 'RSA-OAEP' }, senderPubKey, exportedAesKey),
-    crypto.subtle.encrypt({ name: 'RSA-OAEP' }, receiverPubKey, exportedAesKey)
-  ]);
 
   return {
-    encryptedMessage: toBase64(encryptedMessage),
-    encryptedAESKeyForSender: toBase64(encryptedAESKeyForSender),
-    encryptedAESKeyForReceiver: toBase64(encryptedAESKeyForReceiver),
-    iv: toBase64(iv.buffer)
+    encryptedMessage: toBase64(encrypted.encryptedContent),
+    encryptedAESKeyForSender: encrypted.encryptedAESKeyForSender,
+    encryptedAESKeyForReceiver: encrypted.encryptedAESKeyForReceiver,
+    iv: encrypted.iv
   };
 }
 
 export async function decryptMessageForCurrentUser(payload, privateKey, myEmail) {
-  const { encryptedMessage, encryptedAESKeyForSender, encryptedAESKeyForReceiver, iv } = payload;
-
-  const isSender = payload.sender?.toLowerCase() === myEmail?.toLowerCase();
-  const encryptedAESKey = isSender ? encryptedAESKeyForSender : encryptedAESKeyForReceiver;
-
-  const aesRawKey = await crypto.subtle.decrypt(
-    {
-      name: 'RSA-OAEP'
-    },
-    privateKey,
-    fromBase64(encryptedAESKey)
-  );
-
-  const aesKey = await crypto.subtle.importKey(
-    'raw',
-    aesRawKey,
-    {
-      name: 'AES-GCM',
-      length: 256
-    },
-    false,
-    ['decrypt']
-  );
-
-  const decrypted = await crypto.subtle.decrypt(
-    {
-      name: 'AES-GCM',
-      iv: new Uint8Array(fromBase64(iv))
-    },
-    aesKey,
-    fromBase64(encryptedMessage)
-  );
-
+  const decrypted = await decryptToArrayBuffer(payload, privateKey, myEmail, payload.encryptedMessage);
   return new TextDecoder().decode(decrypted);
+}
+
+export async function encryptFile(file, senderPublicKeyBase64, receiverPublicKeyBase64) {
+  const fileBuffer = await file.arrayBuffer();
+  const encrypted = await createEncryptedPayload(
+    fileBuffer,
+    senderPublicKeyBase64,
+    receiverPublicKeyBase64
+  );
+
+  return {
+    encryptedFileBlob: new Blob([encrypted.encryptedContent], { type: 'application/octet-stream' }),
+    encryptedAESKeyForSender: encrypted.encryptedAESKeyForSender,
+    encryptedAESKeyForReceiver: encrypted.encryptedAESKeyForReceiver,
+    iv: encrypted.iv
+  };
+}
+
+export async function decryptFile(payload, privateKey, myEmail, encryptedFileArrayBuffer) {
+  const decrypted = await decryptToArrayBuffer(payload, privateKey, myEmail, encryptedFileArrayBuffer);
+
+  return new Blob([decrypted], {
+    type: payload.fileMime || (payload.fileType === 'pdf' ? 'application/pdf' : 'image/png')
+  });
 }

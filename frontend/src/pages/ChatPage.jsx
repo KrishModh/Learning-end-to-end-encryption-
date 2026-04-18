@@ -1,7 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { decryptMessageForCurrentUser, ensurePrivateKeyForUser, encryptMessage } from '../utils/crypto';
+import {
+  decryptFile,
+  decryptMessageForCurrentUser,
+  encryptFile,
+  encryptMessage,
+  ensurePrivateKeyForUser
+} from '../utils/crypto';
+
+function getFileMeta(file) {
+  if (!file) return null;
+  if (file.type === 'application/pdf') {
+    return { fileType: 'pdf', fileMime: file.type };
+  }
+  if (file.type.startsWith('image/')) {
+    return { fileType: 'image', fileMime: file.type };
+  }
+  return null;
+}
 
 export default function ChatPage() {
   const navigate = useNavigate();
@@ -13,10 +30,14 @@ export default function ChatPage() {
   const [receiverPublicKey, setReceiverPublicKey] = useState('');
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [debugMessage, setDebugMessage] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const createdObjectUrlsRef = useRef(new Set());
 
   const loadMessages = useCallback(
     async (privateKey, chatPeer, currentUserEmail, silent = false) => {
@@ -27,6 +48,13 @@ export default function ChatPage() {
 
         const decrypted = await Promise.all(
           data.messages.map(async (item) => {
+            if (item.type === 'file') {
+              return {
+                ...item,
+                text: '[Encrypted file]'
+              };
+            }
+
             try {
               const text = await decryptMessageForCurrentUser(item, privateKey, currentUserEmail);
               return { ...item, text };
@@ -36,7 +64,17 @@ export default function ChatPage() {
           })
         );
 
-        setMessages(decrypted);
+        setMessages((previous) => {
+          const prevById = new Map(previous.map((msg) => [msg._id, msg]));
+          return decrypted.map((msg) => {
+            const prev = prevById.get(msg._id);
+            return {
+              ...msg,
+              decryptedFileUrl: prev?.decryptedFileUrl,
+              fileDecryptionError: prev?.fileDecryptionError
+            };
+          });
+        });
       } catch (err) {
         if (!silent) setError(err.message);
       }
@@ -101,6 +139,10 @@ export default function ChatPage() {
     return () => {
       active = false;
       if (intervalId) clearInterval(intervalId);
+      for (const url of createdObjectUrlsRef.current) {
+        URL.revokeObjectURL(url);
+      }
+      createdObjectUrlsRef.current.clear();
     };
   }, [loadMessages, myEmail, navigate]);
 
@@ -116,6 +158,7 @@ export default function ChatPage() {
       const body = {
         sender: myEmail,
         receiver: receiverEmail,
+        type: 'text',
         ...payload
       };
 
@@ -127,6 +170,98 @@ export default function ChatPage() {
       setError(err.message);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function sendFile() {
+    if (!selectedFile || !receiverEmail) return;
+
+    const fileMeta = getFileMeta(selectedFile);
+    if (!fileMeta) {
+      setError('Only image and PDF files are supported.');
+      return;
+    }
+
+    setSending(true);
+    setError('');
+
+    try {
+      const encrypted = await encryptFile(selectedFile, myPublicKeyBase64, receiverPublicKey);
+      const encryptedUploadFile = new File([encrypted.encryptedFileBlob], `${selectedFile.name}.enc`, {
+        type: 'application/octet-stream'
+      });
+
+      const upload = await api.uploadEncryptedFile(encryptedUploadFile, selectedFile.type);
+
+      const body = {
+        sender: myEmail,
+        receiver: receiverEmail,
+        type: 'file',
+        fileUrl: upload.fileUrl,
+        fileType: fileMeta.fileType,
+        fileMime: fileMeta.fileMime,
+        encryptedAESKeyForSender: encrypted.encryptedAESKeyForSender,
+        encryptedAESKeyForReceiver: encrypted.encryptedAESKeyForReceiver,
+        iv: encrypted.iv
+      };
+
+      await api.sendMessage(body);
+      setDebugMessage(body);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      await loadMessages(myPrivateKey, receiverEmail, myEmail);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function decryptAndOpenFile(message) {
+    if (!myPrivateKey || !message.fileUrl) return;
+
+    setError('');
+
+    try {
+      const response = await fetch(message.fileUrl);
+      if (!response.ok) {
+        throw new Error('Failed to download encrypted file from Cloudinary');
+      }
+
+      const encryptedArrayBuffer = await response.arrayBuffer();
+      const decryptedBlob = await decryptFile(message, myPrivateKey, myEmail, encryptedArrayBuffer);
+      const objectUrl = URL.createObjectURL(decryptedBlob);
+      createdObjectUrlsRef.current.add(objectUrl);
+
+      setMessages((previous) =>
+        previous.map((msg) => {
+          if (msg._id !== message._id) return msg;
+
+          if (msg.decryptedFileUrl) {
+            URL.revokeObjectURL(msg.decryptedFileUrl);
+            createdObjectUrlsRef.current.delete(msg.decryptedFileUrl);
+          }
+
+          return {
+            ...msg,
+            decryptedFileUrl: objectUrl,
+            fileDecryptionError: ''
+          };
+        })
+      );
+    } catch {
+      setMessages((previous) =>
+        previous.map((msg) =>
+          msg._id === message._id
+            ? {
+                ...msg,
+                fileDecryptionError: 'Unable to decrypt this file with current private key.'
+              }
+            : msg
+        )
+      );
     }
   }
 
@@ -169,7 +304,35 @@ export default function ChatPage() {
               <small>
                 {msg.sender} - {new Date(msg.timestamp).toLocaleTimeString()}
               </small>
-              <p>{msg.text}</p>
+
+              {msg.type === 'file' ? (
+                <div className="file-message">
+                  <p>
+                    Encrypted {msg.fileType === 'pdf' ? 'PDF' : 'image'} file
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => decryptAndOpenFile(msg)}
+                  >
+                    open File
+                  </button>
+
+                  {msg.fileDecryptionError ? <p className="error">{msg.fileDecryptionError}</p> : null}
+
+                  {msg.decryptedFileUrl && msg.fileType === 'image' ? (
+                    <img src={msg.decryptedFileUrl} alt="Decrypted" className="preview-image" />
+                  ) : null}
+
+                  {msg.decryptedFileUrl && msg.fileType === 'pdf' ? (
+                    <a href={msg.decryptedFileUrl} target="_blank" rel="noreferrer" className="pdf-link">
+                      Open PDF
+                    </a>
+                  ) : null}
+                </div>
+              ) : (
+                <p>{msg.text}</p>
+              )}
             </div>
           ))}
         </div>
@@ -182,31 +345,49 @@ export default function ChatPage() {
             required
           />
           <button type="submit" disabled={sending || !receiverPublicKey}>
-            {sending ? 'Sending...' : 'Send'}
+            {sending ? 'Sending...' : 'Send Text'}
           </button>
-          <button
+          {/* <button
             type="button"
             onClick={() => loadMessages(myPrivateKey, receiverEmail, myEmail)}
             disabled={!myPrivateKey || !receiverEmail}
             className="secondary"
           >
             Refresh
-          </button>
+          </button> */}
         </form>
 
+        <div className="file-upload-row">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+          />
+          <button
+            type="button"
+            onClick={sendFile}
+            disabled={sending || !receiverPublicKey || !selectedFile}
+          >
+            {sending ? 'Uploading...' : 'Send File'}
+          </button>
+        </div>
+
+        {selectedFile ? <p className="hint">Selected: {selectedFile.name}</p> : null}
+{/* 
         <details className="debug-panel">
           <summary>Debug: Raw encrypted payload</summary>
           {debugMessage ? (
             <pre>{JSON.stringify(debugMessage, null, 2)}</pre>
           ) : (
-            <p>Send a message to inspect encryptedMessage, encryptedAESKey, and iv.</p>
+            <p>Send a text or file to inspect encrypted fields.</p>
           )}
-        </details>
+        </details> */}
 
-        <p className="hint">
-          Tip: Send the exact same plaintext twice and compare `encryptedMessage` or `iv` values in debug view.
-          They should differ due to random IV.
-        </p>
+        {/* <p className="hint">
+          Tip: Upload the same file twice and compare `iv` values or encrypted payload in MongoDB. Ciphertext
+          should differ every time.
+        </p> */}
       </div>
     </div>
   );

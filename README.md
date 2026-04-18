@@ -1,11 +1,12 @@
 # Minimal E2EE Chat Test App
 
-This project demonstrates **client-side End-to-End Encryption (E2EE)** between two predefined users.
+This project demonstrates **client-side End-to-End Encryption (E2EE)** between two predefined users for both **text** and **file (image/PDF)** messages.
 
 - Frontend: React + Vite + Web Crypto API
 - Backend: Node.js + Express + MongoDB Atlas (Mongoose)
+- File Storage: Cloudinary (stores encrypted file bytes only)
 
-The backend stores only encrypted payloads and never decrypts message content.
+The backend and Cloudinary never decrypt message/file contents.
 
 ## Project Structure
 
@@ -32,6 +33,9 @@ Copy-Item .env.example .env
 - `USER1_PASSWORD`
 - `USER2_EMAIL`
 - `USER2_PASSWORD`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
 
 3. Install and run backend:
 
@@ -74,34 +78,42 @@ npm run install:all
 npm run dev
 ```
 
-## How It Works (E2EE Flow)
+## How E2EE Works
 
-1. Login with one of the two predefined users (validated against backend `.env`).
-2. On first login, frontend generates RSA keypair using Web Crypto API.
-3. Private key is stored only in browser localStorage (per user email).
-4. Public key is uploaded to backend and stored in MongoDB.
-5. To send message:
-   - Frontend generates random AES key + random IV.
-   - Message is encrypted with AES-GCM.
-   - AES key is encrypted with receiver public RSA key.
-   - Backend stores ciphertext fields as-is.
-6. To read message:
-   - Frontend fetches encrypted messages.
-   - Frontend decrypts AES key using local private key.
-   - Frontend decrypts message and renders plaintext.
+### Text Message Flow
+
+1. Frontend generates AES key + random IV.
+2. Plaintext is encrypted with AES-GCM.
+3. AES key is encrypted twice using RSA-OAEP:
+   - one copy with sender public key
+   - one copy with receiver public key
+4. Backend stores only ciphertext fields.
+
+### File (Image/PDF) Flow
+
+1. User selects file.
+2. Frontend reads file as `ArrayBuffer`.
+3. Frontend encrypts bytes with AES-GCM + random IV.
+4. AES key is RSA-encrypted for sender and receiver.
+5. Frontend uploads encrypted binary blob to backend.
+6. Backend uploads raw encrypted bytes to Cloudinary.
+7. Backend stores only Cloudinary URL + encrypted key material.
+8. Receiver downloads encrypted bytes and decrypts locally.
 
 ## Debug + Verification
 
-- Chat page includes a **Debug: Raw encrypted payload** panel.
-- Send same plaintext twice and verify ciphertext/IV differ (random IV).
-- In MongoDB, message text is unreadable ciphertext only.
+- Chat page includes **Debug: Raw encrypted payload** panel.
+- Send same text or upload same file twice and compare payload `iv` / ciphertext: values should differ each time.
+- Opening Cloudinary URL directly shows encrypted raw bytes, not original image/PDF.
+- MongoDB stores encrypted fields only.
 
-## Backend API (Minimal)
+## Backend API
 
 - `POST /api/auth/login`
 - `GET /api/auth/peer`
 - `POST /api/users/public-key`
 - `GET /api/users/public-key/:email`
+- `POST /api/files/upload` (encrypted file upload)
 - `POST /api/messages`
 - `GET /api/messages?withUser=<email>`
 
@@ -116,7 +128,13 @@ npm run dev
 
 - `sender`
 - `receiver`
-- `encryptedMessage`
-- `encryptedAESKey`
+- `type` (`text` or `file`)
+- `encryptedMessage` (text only)
+- `fileUrl` (file only)
+- `encryptedAESKey` (receiver key copy)
+- `encryptedAESKeyForSender`
+- `encryptedAESKeyForReceiver`
 - `iv`
+- `fileType` (`image` or `pdf`, file only)
+- `fileMime` (optional helper, file only)
 - `timestamp`
