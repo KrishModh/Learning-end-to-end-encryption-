@@ -256,9 +256,9 @@ export default function ChatPage() {
         previous.map((msg) =>
           msg._id === message._id
             ? {
-                ...msg,
-                fileDecryptionError: 'Unable to decrypt this file with current private key.'
-              }
+              ...msg,
+              fileDecryptionError: 'Unable to decrypt this file with current private key.'
+            }
             : msg
         )
       );
@@ -347,14 +347,6 @@ export default function ChatPage() {
           <button type="submit" disabled={sending || !receiverPublicKey}>
             {sending ? 'Sending...' : 'Send Text'}
           </button>
-          {/* <button
-            type="button"
-            onClick={() => loadMessages(myPrivateKey, receiverEmail, myEmail)}
-            disabled={!myPrivateKey || !receiverEmail}
-            className="secondary"
-          >
-            Refresh
-          </button> */}
         </form>
 
         <div className="file-upload-row">
@@ -374,20 +366,7 @@ export default function ChatPage() {
         </div>
 
         {selectedFile ? <p className="hint">Selected: {selectedFile.name}</p> : null}
-{/* 
-        <details className="debug-panel">
-          <summary>Debug: Raw encrypted payload</summary>
-          {debugMessage ? (
-            <pre>{JSON.stringify(debugMessage, null, 2)}</pre>
-          ) : (
-            <p>Send a text or file to inspect encrypted fields.</p>
-          )}
-        </details> */}
 
-        {/* <p className="hint">
-          Tip: Upload the same file twice and compare `iv` values or encrypted payload in MongoDB. Ciphertext
-          should differ every time.
-        </p> */}
       </div>
     </div>
   );
